@@ -35,12 +35,3 @@ training/SCD0000401/140.npz
 training/SCD0000401/160.npz
 training/SCD0000401/180.npz
 training/SCD0000401/200.npz
-training/SCD0000501/59.npz
-training/SCD0000501/79.npz
-training/SCD0000501/99.npz
-training/SCD0000501/119.npz
-training/SCD0000501/139.npz
-training/SCD0000501/159.npz
-training/SCD0000501/179.npz
-training/SCD0000501/199.npz
-training/SCD0000501/219.npz
