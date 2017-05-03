@@ -1,5 +1,17 @@
+# Part 1: Part 1: Parse the o-contours
 
+I made a couple of changes to the code.
+1) The process.py script now saves any image that has either an i-contour or an i-contour to an npz
+file along with whichever contour exists.  It creates three fileslists instead of one,
+i_contour.txt,o_contour.txt,and both contour.txt
+2) Reader.py
+3) One way that I was checking my output was by saving overlaid images and contours.  This was pulled
+out of the process.py script. into its own script.  Using this to check the o-contours, I was able
+to see that the o-contours associated with patient 501 were not properly aligned, and removed them from
+the list.
 
+See e.g.:
+<img src="training/overlaid_o/SCD0000501_179.png" width="256px">
 
 # Part 2: Heuristic LV Segmentation approaches
 
