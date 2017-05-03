@@ -7,19 +7,17 @@ import logging
 import argparse
 
 class Dicom_Processor():
-    def __init__(self,link_file,dicom_dir,contour_dir,output_dir,print_overlaid=True):
+    def __init__(self,link_file,dicom_dir,contour_dir,output_dir):
         """
         :param link_file: csv file containing links between dicom dirs and contour dirs
-        :param dicom_dir: root directory of dicom images
-        :param contour_dir: root directory of contour images
+        :param dicom_dir: root directory of input dicom images
+        :param contour_dir: root directory of input contour images
         :param output_dir: root directory for output npz files
-        :param print_overlaid:  Flag for printing images with the mask overlaid on the image
         """
         self.link_file = link_file
         self.dicom_dir = dicom_dir
         self.contour_dir = contour_dir
         self.output_dir = output_dir
-        self.print_overlaid = print_overlaid
 
         #initiaize logger
         self._create_dir(self.output_dir)
@@ -69,50 +67,28 @@ class Dicom_Processor():
             return None
         return parsing.poly_to_mask(contours, image_size[1], image_size[0])
 
-    def _overlay(self,image,mask):
-        """
-        :param image: dicom image as np array
-        :param mask: mask as np array
-        :return: 3-channe np array where image is blue channel and mask is green
-        """
-        r = np.zeros_like(image)
-        g = mask * 255
-        b = image
-        return np.dstack((r,g,b))
-
-    def _print_overlaid_image(self,image,mask,patient,num):
-        """
-        :param image: dicom image as np array
-        :param mask: mask as np array
-        :patient: str id
-        :num: int number of the image
-        """
-        overlaid = self._overlay(image,mask)
-        fname = os.path.join(self.output_dir,"overlaid",patient + str(num) + ".png")
-        imsave(fname,overlaid)
-
     def _create_dir(self,dir_path):
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
-    def _test_dir(self,dir_path):
+    def _test_dir(self,dir_path,log_error=True):
         """
         test whether dir_path exists and log error if not
         """
         if not os.path.exists(dir_path):
-            self.logger.error("{} directory does not exist".format(dir_path))
+            if log_error:
+                self.logger.error("{} directory does not exist".format(dir_path))
             return False
         return True
 
     def process(self):
         """
-        Create npz files containing input/target arrays
+        Create npz files containing input/i-contour/o-contour arrays
         Creates directory sturction <output_dir>/<patient_id>/<image_num>.npz
         """
-        if self.print_overlaid:
-            self._create_dir(os.path.join(self.output_dir,"overlaid"))
-
-        filelist = open(os.path.join(self.output_dir,"filelist.txt"),'w')
+        i_contour_file = open(os.path.join(self.output_dir,"i_contour.txt"),'w')
+        o_contour_file = open(os.path.join(self.output_dir,"o_contour.txt"),'w')
+        both_contour_file = open(os.path.join(self.output_dir,"both_contour.txt"),'w')
 
         links_df = pd.read_csv(self.link_file)
 
@@ -120,40 +96,74 @@ class Dicom_Processor():
 
             #get directory names and test that they exist
             patient_dicom_dir = os.path.join(self.dicom_dir,row.patient_id)
-            patient_contour_dir = os.path.join(self.contour_dir,row.original_id,'i-contours')
-            if not (self._test_dir(patient_dicom_dir) and self._test_dir(patient_contour_dir)):
+            patient_i_contour_dir = os.path.join(self.contour_dir,row.original_id,'i-contours')
+            patient_o_contour_dir = os.path.join(self.contour_dir,row.original_id,'o-contours')
+
+            #test that the dicom directory exists
+            if not self._test_dir(patient_dicom_dir):
                 break
 
             #get files and image numbers
             dicom_id_file_dict = self._dir_to_id_file_dict(patient_dicom_dir,self._dicom_id_parser)
-            contour_id_file_dict = self._dir_to_id_file_dict(patient_contour_dir,self._contour_id_parser)
+            i_contour_id_file_dict = self._dir_to_id_file_dict(patient_i_contour_dir,self._contour_id_parser)
+            o_contour_id_file_dict = self._dir_to_id_file_dict(patient_o_contour_dir,self._contour_id_parser)
 
-            #create npz files for a given patient containing image and target
-            patient_dir = os.path.join(self.output_dir,row.patient_id)
-            self._create_dir(patient_dir)
             for image_id in dicom_id_file_dict:
-                if image_id in contour_id_file_dict:
+                have_i_contour = image_id in i_contour_id_file_dict
+                have_o_contour = image_id in o_contour_id_file_dict
 
-                    dicom_image = parsing.parse_dicom_file(dicom_id_file_dict[image_id],
-                                                           self.logger)['pixel_data']
-                    contour_mask = self._get_contour_mask(contour_id_file_dict[image_id],dicom_image.shape)
+                #process if either mask exists
+                if have_i_contour or have_o_contour:
+                    npz_items = {}
 
-                    if dicom_image is not None and contour_mask is not None:
+                    #parse the dicom image
+                    dicom_dict = parsing.parse_dicom_file(dicom_id_file_dict[image_id],self.logger)
+                    if dicom_dict is not None:
+                        dicom_image = dicom_dict['pixel_data']
+                        npz_items["image"] = dicom_image
+                    else:
+                        break
+
+                    #parse the i_contour
+                    if have_i_contour:
+                        i_contour_mask = self._get_contour_mask(i_contour_id_file_dict[image_id],dicom_image.shape)
+                        if i_contour_mask is not None:
+                            npz_items["i_contour"] = i_contour_mask
+                        else:
+                            have_i_contour = False
+
+                    #parse the o_contour
+                    if have_o_contour:
+                        o_contour_mask = self._get_contour_mask(o_contour_id_file_dict[image_id],dicom_image.shape)
+                        if o_contour_mask is not None:
+                            npz_items["o_contour"] = o_contour_mask
+                        else:
+                            have_o_contour=False
+
+                    #save the npz
+                    if have_i_contour or have_o_contour:
+                        #create the directory if it doesn't exist
+                        patient_dir = os.path.join(self.output_dir,row.patient_id)
+                        self._create_dir(patient_dir)
+
+                        #save
                         npz_path = os.path.join(patient_dir,str(image_id))
-                        np.savez(npz_path,image=dicom_image,target=contour_mask)
+                        np.savez(npz_path,**npz_items)
 
-                        #append to filelist
-                        filelist.write(npz_path + ".npz" + "\n")
+                        #write the npz filename to the appropriate lists
+                        if have_i_contour:
+                            i_contour_file.write(npz_path + ".npz\n")
+                        if have_o_contour:
+                            o_contour_file.write(npz_path + ".npz\n")
+                        if have_i_contour and have_o_contour:
+                            both_contour_file.write(npz_path + ".npz" + "\n")
 
-                        #create overlay images
-                        if self.print_overlaid:
-                            self._print_overlaid_image(dicom_image,contour_mask,row.patient_id,image_id)
-
-        filelist.close()
+        i_contour_file.close()
+        o_contour_file.close()
+        both_contour_file.close()
 
 def main(args):
-    processor=Dicom_Processor(args.link,args.dicom_dir,args.contour_dir,args.output_dir,
-                              args.print_overlaid)
+    processor=Dicom_Processor(args.link,args.dicom_dir,args.contour_dir,args.output_dir)
     processor.process()
 
 if __name__ == "__main__":
@@ -181,11 +191,6 @@ if __name__ == "__main__":
          type=str,
          default='training',
          help='root output directory'
-    )
-    parser.add_argument(
-        '--print_overlaid',
-        action='store_true',
-        help='print overlayed images to allow for visual check'
     )
     args = parser.parse_args()
     main(args)
