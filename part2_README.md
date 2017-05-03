@@ -1,4 +1,4 @@
-# Part 1: Part 1: Parse the o-contours
+# Part 1: Parse the o-contours
 
 I made a couple of changes to the code.
 
@@ -7,15 +7,11 @@ file along with whichever contour exists.  It creates three fileslists instead o
 i_contour.txt,o_contour.txt,and both contour.txt.
 This seemed more flexible.
 
-2) Reader.py
+2) Reader.py:  This was updated to optionally output two masks instead of one.  I also made the neural-net style image processing an option so that I could get raw images for this task instead.
 
-This was updated to optionally output three masks instead of two.  I also made the neural-net style image processing an option so that I could get raw images
-this task instead.
-
-3) One way that I was checking my output was by saving overlaid images and contours.  This was pulled
-out of the process.py script. into its own script.  Using this to check the o-contours, I was able
-to see that the o-contours associated with patient 501 were not properly aligned, and removed them from
-the list.
+3) One way that I was checking my output was by saving overlaid images and contours.  This was taken of the process.py script and put into its own script.  Using this to check the o-contours, I was able
+to see that the o-contours associated with patient 501 were not properly aligned.  I removed them from
+the list that I used to evaluate the contours.
 
 See e.g.:
 <img src="training/overlaid_o/SCD0000501_179.png" width="256px">
