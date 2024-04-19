@@ -1,7 +1,4 @@
 # dicom
-
-As a note I wrote and tested this with python3.
-
 ### Part 1:
 The process.py script performs the task described in part one.  The usage is:
 ```
